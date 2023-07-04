@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.0.2/dist/tailwind.min.css" rel="stylesheet">
+    <style>
+        body {
+            line-height: 1
+        }
+
+        #result {
+            white-space: pre;
+            display: flex;
+            flex-direction: row;
+            flex-wrap: wrap;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .objectContainer {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            border: 1px solid #f9f9f9;
+            padding: 10px;
+            width: fit-content;
+            height: fit-content;
+            margin: 10px;
+        }
+
+        p {
+            margin: 0;
+        }
+
+        h3 {
+            margin: 0;
+        }
+
+        ul {
+            margin: 0;
+        }
+    </style>
+
+    <script>
+        function log(msg) {
+            var elem = document.getElementById('log');
+            elem.textContent = msg + "\n" + elem.textContent;
+        }
+
+        function render_object(i, is_new) {
+            const obj = world_data.objects[i];
+            let node = 0;
+            if (is_new) {
+                // Add object to world_data
+                const result = document.getElementById('result');
+                node = document.createElement('div');
+                result.appendChild(node);
+            } else {
+                // Get object from world_data
+                node = document.getElementById('result').children[i];
+            }
+
+            node.innerHTML = obj.name + " <button class='mt-3 bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded' onclick='interact(" + i + ")'>Interact</button>\n";
+
+            log("Rendering object " + obj.name + "...")
+            // Send post to render object
+            fetch('/api/render_object', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    "object": obj,
+                    "world": world_data
+                })
+            }).then(res => res.json()).then(data => {
+
+                node.innerHTML += data.html;
+                // flex flex-col justify-center items-center border border-white p-2 mx-auto my-2 bg-gray-700 text-white rounded shadow-md
+                //node.classList.add('objectContainer');
+                // Add flex etc classes to the rendered object
+                node.classList.add('flex', 'flex-col', 'justify-center', 'items-center', 'border', 'border-white', 'p-2', 'mx-auto', 'my-2', 'bg-gray-700', 'text-white', 'rounded', 'shadow-md');
+                // Remove height and width from the rendered object
+                // so that it can be resized by our code
+                //node.getElementsByClassName('object')[0].style.height = "";
+                //node.getElementsByClassName('object')[0].style.width = "";
+                log("Rendered object " + obj.name);
+            });
+        }
+
+        async function fetchWorld() {
+            const worldDesc = document.getElementById('worldDesc').value;
+            log("Loading world...")
+            const response = await fetch(`/api/gen_world?world_desc=${encodeURIComponent(worldDesc)}`);
+            world_data = await response.json();
+            document.getElementById('result').innerHTML = "";
+            //document.getElementById('result').textContent = 
+            //JSON.stringify(data, null, 2);
+            // data has an array called objects
+            for (let i = 0; i < world_data.objects.length; i++) {
+                render_object(i, true);
+            }
+        }
+
+        function interact(index) {
+            const obj = world_data.objects[index];
+            const interactions = document.getElementById('interactions');
+            interactions.innerHTML = "";
+            log("Interacting with object " + obj.name + "...")
+            // Send post to interact with object
+            fetch('/api/interact', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    "object": obj,
+                    "world": world_data
+                })
+            }).then(res => res.json()).then(data => {
+                current_interactions = [];
+                for (let i = 0; i < data.interactions.length; i++) {
+                    current_interactions.push(data.interactions[i]);
+                    interactions.innerHTML += "<button class='mt-3 bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded' onclick='doInteraction(" + i + "," + index + ")'>" + data.interactions[i].display_name + "</button>";
+                }
+                log("Interacted with object " + obj.name);
+            });
+        }
+
+        function doInteraction(index, obj_index) {
+            const interaction = current_interactions[index];
+            log("Doing interaction " + interaction.display_name + "...")
+            const interactions_html = document.getElementById('interactions');
+            interactions_html.innerHTML = "";
+
+            let interaction_args = interaction.arguments;
+            if (interaction_args) {
+                // Ask the user for the arguments using input()
+                for (let i = 0; i < interaction_args.length; i++) {
+                    let question = interaction_args[i];
+                    let answer = prompt(question);
+                    interaction_args[i] += "=" + answer;
+                }
+            }
+
+            // Send post to do interaction
+            fetch('/api/do_interaction', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    "interaction": interaction,
+                    "world": world_data,
+                    "object": world_data.objects[obj_index]
+                })
+            }).then(res => res.json()).then(data => {
+                console.log(data);
+                if (data.delete_objects) {
+                    for (let i = 0; i < data.delete_objects.length; i++) {
+                        let obj_name = data.delete_objects[i].name;
+                        for (let j = 0; j < world_data.objects.length; j++) {
+                            if (world_data.objects[j].name == obj_name) {
+                                log("Deleting object " + obj_name);
+                                world_data.objects.splice(j, 1);
+                                document.getElementById('result').children[j].remove();
+                                break;
+                            }
+                        }
+                    }
+                    // update onclick handlers
+                    for (let i = 0; i < world_data.objects.length; i++) {
+                        document.getElementById('result').children[i].children[1].onclick = function () {
+                            interact(i);
+                        };
+                    }
+                }
+                if (data.display_messages) {
+                    for (let i = 0; i < data.display_messages.length; i++) {
+                        log(data.display_messages[i].message);
+                    }
+                }
+                if (data.create_objects) {
+                    for (let i = 0; i < data.create_objects.length; i++) {
+                        world_data.objects.push(data.create_objects[i]);
+                        log("Creating object " + data.create_objects[i].name);
+                        render_object(world_data.objects.length - 1, true);
+                    }
+                }
+                if (data.overwrite_metadata) {
+                    for (let i = 0; i < data.overwrite_metadata.length; i++) {
+                        let obj_name = data.overwrite_metadata[i].name;
+                        for (let j = 0; j < world_data.objects.length; j++) {
+                            if (world_data.objects[j].name == obj_name) {
+                                log("Updating metadata for object " + obj_name)
+                                //world_data.objects[j].metadata = data.overwrite_metadata[i].metadata;
+                                // do key by key
+                                for (let key in data.overwrite_metadata[i].metadata) {
+                                    world_data.objects[j].metadata[key] = data.overwrite_metadata[i].metadata[key];
+                                }
+                                render_object(j, false);
+                            }
+                        }
+                    }
+                }
+                log("Done interaction " + interaction.display_name);
+            });
+        }
+    </script>
+</head>
+
+<body class="bg-gray-800 text-white">
+    <div class="container mx-auto px-4 py-5">
+        <input id="worldDesc"
+            class="px-3 py-2 placeholer-gray-300 text-gray-600 relative bg-white rounded text-sm border-0 shadow-outline focus:outline-none focus:ring w-full"
+            placeholder="Describe your world">
+        <button onclick="fetchWorld()"
+            class="mt-3 bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">Generate World</button>
+        <div id="interactions" class="mt-5"></div>
+        <div id="result" class="mt-5"></div>
+        <pre id="log" class="mt-5 bg-gray-600 p-5 rounded text-white text-lg"></pre>
+    </div>
+</body>
+
+</html>
