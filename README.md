@@ -45,5 +45,13 @@ Create a `.env` file with your `OPENAI_API_KEY` as a variable.
 Install the requirements with `pip install -r requirements.txt`. Then, run
 `uvicorn main:app` to start the server. 
 
-Finally, browse `localhost:8000` or whatever port is used by uvicorn in your
-case.
+Finally, browse `http://127.0.0.1:8000/static/index.html` or whatever port is 
+used by uvicorn in your case.
+
+# Contributing
+
+First of all I apologize for the javascript code, I hate javascript and I
+really didn't want to use something like React for something as simple as this.
+
+Feel free to improve anything and open a pull request (including stuff like a React
+port, I'm just too lazy to do it myself).
