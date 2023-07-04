@@ -1,4 +1,4 @@
-# Language-Modeled Game Engine
+# LangPlay: Language-Modeled Game Engine
 
 This is an experiment where I tried to use a language model to perform the
 tasks that would normally be done by a game engine. 
@@ -8,7 +8,8 @@ game, and runs it. The specification of a game is usually a set of rules,
 assets, and so on. At runtime, the game engine uses the specification 
 to maintain a game state and listen to user input, which in turn changes
 the game state. The game engine then renders the game state to the screen 
-or other devices.
+or other devices. The goal of this experiment is to use a language model
+to perform these tasks.
 
 For building the specification of a game, we can use a prompt that translates
 a natural language input into the initial game state. For example, the prompt
