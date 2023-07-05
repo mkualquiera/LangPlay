@@ -53,11 +53,14 @@ def gen_world(world_desc: str) -> World:
                     "environment or scene. Objects do not have a position."
                     "The player must be an object of the world. There must"
                     "also be a game_state object that holds core variables"
-                    "for the game loop."
+                    "for the game loop. The game_state object must also have"
+                    "a small description of the game and the player's goal or"
+                    "win conditions."
                     "Here is an example world:"
                     '{"objects": [{"name": "tree", "metadata": {"color": "green"}},'
                     '{"name": "player", "metadata": {"has_axe": false}},'
-                    '{"name": "game_state", "metadata": {"has_won": false}}]}'
+                    '{"name": "game_state", "metadata": {"has_won": false, '
+                    '"description": "You are a lumberjack. You must cut down the tree."}}]}'
                     "\n The name of each object must be unique. The metadata"
                     " can be any JSON object. Only output the JSON object.",
                 },
@@ -181,6 +184,16 @@ def obtain_object_interactions(
     if isinstance(interactions_dict, list):
         interactions_dict = {"interactions": interactions_dict}
 
+    # Add "custom" interaction which is always available and allows the player
+    # to type in a custom command
+    interactions_dict["interactions"].append(
+        {
+            "name": "custom",
+            "display_name": "Custom",
+            "arguments": ["What do you want to do?"],
+        }
+    )
+
     interactions = ObtainObjectInteractionsResponse.parse_obj(interactions_dict)
 
     return interactions
@@ -263,7 +276,10 @@ def do_interact(request: DoInteractRequest) -> DoInteractResponse:
                     "as this is more fun for the player. You should also challenge"
                     " the player by having certain interactions fail. For example,"
                     " if the player tries to eat a rock, you should show a message"
-                    " that says 'You can't eat a rock!'"
+                    " that says 'You can't eat a rock!'. Some interactions should"
+                    " also fail randomly, to represent a sense of difficulty."
+                    " for example a cauldron might explode even if the player"
+                    " correctly follows the recipe for a potion."
                     "You must not abuse display_messages by using it to display"
                     "things that didn't happen. For example, you can't say 'The"
                     "monster died!' if you don't also use delete_objects to delete"
