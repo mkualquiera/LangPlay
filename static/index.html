@@ -43,9 +43,28 @@
     </style>
 
     <script>
-        function log(msg) {
+        function log(msg, color) {
             var elem = document.getElementById('log');
-            elem.textContent = msg + "\n" + elem.textContent;
+            var msg_html = "<div style='color: " + color + ";'>" + msg + "</div>";
+            elem.innerHTML = msg_html + "\n" + elem.innerHTML;
+        }
+
+        function clearLog() {
+            document.getElementById('log').innerHTML = "";
+        }
+
+        function disableAllButtons() {
+            var buttons = document.getElementsByTagName('button');
+            for (let i = 0; i < buttons.length; i++) {
+                buttons[i].disabled = true;
+            }
+        }
+
+        function enableAllButtons() {
+            var buttons = document.getElementsByTagName('button');
+            for (let i = 0; i < buttons.length; i++) {
+                buttons[i].disabled = false;
+            }
         }
 
         function render_object(i, is_new) {
@@ -63,7 +82,7 @@
 
             node.innerHTML = obj.name + " <button class='mt-3 bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded' onclick='interact(" + i + ")'>Interact</button>\n";
 
-            log("Rendering object " + obj.name + "...")
+            log("Rendering object " + obj.name + "...", "gray")
             // Send post to render object
             fetch('/api/render_object', {
                 method: 'POST',
@@ -85,13 +104,15 @@
                 // so that it can be resized by our code
                 //node.getElementsByClassName('object')[0].style.height = "";
                 //node.getElementsByClassName('object')[0].style.width = "";
-                log("Rendered object " + obj.name);
+                log("Rendered object " + obj.name, "gray");
             });
         }
 
         async function fetchWorld() {
+            clearLog();
+            disableAllButtons();
             const worldDesc = document.getElementById('worldDesc').value;
-            log("Loading world...")
+            log("Loading world...", "gray")
             const response = await fetch(`/api/gen_world?world_desc=${encodeURIComponent(worldDesc)}`);
             world_data = await response.json();
             document.getElementById('result').innerHTML = "";
@@ -101,14 +122,18 @@
             for (let i = 0; i < world_data.objects.length; i++) {
                 render_object(i, true);
             }
+            enableAllButtons();
         }
+
+        tickTimer = 3;
 
         function interact(index) {
             const obj = world_data.objects[index];
             const interactions = document.getElementById('interactions');
             interactions.innerHTML = "";
-            log("Interacting with object " + obj.name + "...")
+            log("Interacting with object " + obj.name + "...", "gray")
             // Send post to interact with object
+            disableAllButtons();
             fetch('/api/interact', {
                 method: 'POST',
                 headers: {
@@ -124,13 +149,15 @@
                     current_interactions.push(data.interactions[i]);
                     interactions.innerHTML += "<button class='mt-3 bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded' onclick='doInteraction(" + i + "," + index + ")'>" + data.interactions[i].display_name + "</button>";
                 }
-                log("Interacted with object " + obj.name);
+                log("Interacted with object " + obj.name, "gray");
+                enableAllButtons();
             });
         }
 
         function doInteraction(index, obj_index) {
+            disableAllButtons();
             const interaction = current_interactions[index];
-            log("Doing interaction " + interaction.display_name + "...")
+            log("Doing interaction " + interaction.display_name + "...", "gray")
             const interactions_html = document.getElementById('interactions');
             interactions_html.innerHTML = "";
 
@@ -157,54 +184,83 @@
                 })
             }).then(res => res.json()).then(data => {
                 console.log(data);
-                if (data.delete_objects) {
-                    for (let i = 0; i < data.delete_objects.length; i++) {
-                        let obj_name = data.delete_objects[i].name;
-                        for (let j = 0; j < world_data.objects.length; j++) {
-                            if (world_data.objects[j].name == obj_name) {
-                                log("Deleting object " + obj_name);
-                                world_data.objects.splice(j, 1);
-                                document.getElementById('result').children[j].remove();
-                                break;
-                            }
-                        }
-                    }
-                    // update onclick handlers
-                    for (let i = 0; i < world_data.objects.length; i++) {
-                        document.getElementById('result').children[i].children[1].onclick = function () {
-                            interact(i);
-                        };
-                    }
+                handleInteractionResult(data);
+                enableAllButtons();
+                log("Done interaction " + interaction.display_name, "gray");
+                tickTimer += 1;
+                if (tickTimer >= 5) {
+                    tickTimer = 0;
+                    tick();
                 }
-                if (data.display_messages) {
-                    for (let i = 0; i < data.display_messages.length; i++) {
-                        log(data.display_messages[i].message);
-                    }
-                }
-                if (data.create_objects) {
-                    for (let i = 0; i < data.create_objects.length; i++) {
-                        world_data.objects.push(data.create_objects[i]);
-                        log("Creating object " + data.create_objects[i].name);
-                        render_object(world_data.objects.length - 1, true);
-                    }
-                }
-                if (data.overwrite_metadata) {
-                    for (let i = 0; i < data.overwrite_metadata.length; i++) {
-                        let obj_name = data.overwrite_metadata[i].name;
-                        for (let j = 0; j < world_data.objects.length; j++) {
-                            if (world_data.objects[j].name == obj_name) {
-                                log("Updating metadata for object " + obj_name)
-                                //world_data.objects[j].metadata = data.overwrite_metadata[i].metadata;
-                                // do key by key
-                                for (let key in data.overwrite_metadata[i].metadata) {
-                                    world_data.objects[j].metadata[key] = data.overwrite_metadata[i].metadata[key];
-                                }
-                                render_object(j, false);
-                            }
+            });
+        }
+
+        function handleInteractionResult(data) {
+            if (data.delete_objects) {
+                for (let i = 0; i < data.delete_objects.length; i++) {
+                    let obj_name = data.delete_objects[i].name;
+                    for (let j = 0; j < world_data.objects.length; j++) {
+                        if (world_data.objects[j].name == obj_name) {
+                            log("Deleting object " + obj_name, "red");
+                            world_data.objects.splice(j, 1);
+                            document.getElementById('result').children[j].remove();
+                            break;
                         }
                     }
                 }
-                log("Done interaction " + interaction.display_name);
+                // update onclick handlers
+                for (let i = 0; i < world_data.objects.length; i++) {
+                    document.getElementById('result').children[i].children[1].onclick = function () {
+                        interact(i);
+                    };
+                }
+            }
+            if (data.display_messages) {
+                for (let i = 0; i < data.display_messages.length; i++) {
+                    log(data.display_messages[i].message, "pink");
+                }
+            }
+            if (data.create_objects) {
+                for (let i = 0; i < data.create_objects.length; i++) {
+                    world_data.objects.push(data.create_objects[i]);
+                    log("Creating object " + data.create_objects[i].name, "green");
+                    render_object(world_data.objects.length - 1, true);
+                }
+            }
+            if (data.overwrite_metadata) {
+                for (let i = 0; i < data.overwrite_metadata.length; i++) {
+                    let obj_name = data.overwrite_metadata[i].name;
+                    for (let j = 0; j < world_data.objects.length; j++) {
+                        if (world_data.objects[j].name == obj_name) {
+                            log("Updating metadata for object " + obj_name, "yellow")
+                            //world_data.objects[j].metadata = data.overwrite_metadata[i].metadata;
+                            // do key by key
+                            for (let key in data.overwrite_metadata[i].metadata) {
+                                world_data.objects[j].metadata[key] = data.overwrite_metadata[i].metadata[key];
+                            }
+                            render_object(j, false);
+                        }
+                    }
+                }
+            }
+        }
+
+        function tick() {
+            disableAllButtons();
+            // Send post to do interaction
+            fetch('/api/game_tick', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    "world": world_data,
+                })
+            }).then(res => res.json()).then(data => {
+                console.log(data);
+                handleInteractionResult(data);
+                log("Done game tick", "gray");
+                enableAllButtons();
             });
         }
     </script>
@@ -214,12 +270,13 @@
     <div class="container mx-auto px-4 py-5">
         <input id="worldDesc"
             class="px-3 py-2 placeholer-gray-300 text-gray-600 relative bg-white rounded text-sm border-0 shadow-outline focus:outline-none focus:ring w-full"
-            placeholder="Describe your world">
+            placeholder="Describe your world"
+            value="A fantasy laboratory game where you can brew and sell magic potions">
         <button onclick="fetchWorld()"
             class="mt-3 bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">Generate World</button>
         <div id="interactions" class="mt-5"></div>
         <div id="result" class="mt-5"></div>
-        <pre id="log" class="mt-5 bg-gray-600 p-5 rounded text-white text-lg"></pre>
+        <div id="log" class="mt-5 bg-gray-600 p-5 rounded text-white text-lg"></div>
     </div>
 </body>
 
