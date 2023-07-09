@@ -1,0 +1,7 @@
+services:
+  app:
+    build: .
+    ports:
+      - "42429:8000"
+    environment:
+      OPENAI_API_KEY: ""
